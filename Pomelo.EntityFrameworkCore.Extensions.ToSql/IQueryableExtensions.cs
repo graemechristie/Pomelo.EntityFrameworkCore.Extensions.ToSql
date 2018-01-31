@@ -69,9 +69,6 @@ namespace Microsoft.EntityFrameworkCore
             public static readonly FieldInfo QueryCompilerOfEntityQueryProvider = typeof(EntityQueryProvider).GetTypeInfo().DeclaredFields.First(x => x.Name == "_queryCompiler");
             public static readonly PropertyInfo DatabaseOfQueryCompiler = typeof(QueryCompiler).GetTypeInfo().DeclaredProperties.First(x => x.Name == "Database");
             public static readonly PropertyInfo DependenciesOfDatabase = typeof(Database).GetTypeInfo().DeclaredProperties.First(x => x.Name == "Dependencies");
-            public static readonly TypeInfo QueryCompilerTypeInfo = typeof(QueryCompiler).GetTypeInfo();
-            public static readonly MethodInfo CreateQueryParserMethod = QueryCompilerTypeInfo.DeclaredMethods.First(x => x.Name == "CreateQueryParser");
-            public static readonly PropertyInfo NodeTypeProvider = QueryCompilerTypeInfo.DeclaredProperties.Single(x => x.Name == "NodeTypeProvider");
             public static readonly PropertyInfo QueriesOfRelationalQueryModelVisitor = typeof(RelationalQueryModelVisitor).GetTypeInfo().DeclaredProperties.Single(x => x.Name == "Queries");
         }
 
@@ -84,13 +81,13 @@ namespace Microsoft.EntityFrameworkCore
             }
             var fields = typeof(Database).GetTypeInfo().DeclaredFields;
 
+            var queryModelGenerator = new QueryModelGenerator(new DefaultMethodInfoBasedNodeTypeRegistryFactory(), new EvaluatableExpressionFilter());
+
             var queryCompiler = (QueryCompiler)ReflectionCommon.QueryCompilerOfEntityQueryProvider.GetValue(self.Provider);
             var database = (Database)ReflectionCommon.DatabaseOfQueryCompiler.GetValue(queryCompiler);
             var dependencies = (DatabaseDependencies)ReflectionCommon.DependenciesOfDatabase.GetValue(database);
             var factory = dependencies.QueryCompilationContextFactory;
-            var nodeTypeProvider = (INodeTypeProvider)ReflectionCommon.NodeTypeProvider.GetValue(queryCompiler);
-            var parser = (QueryParser)ReflectionCommon.CreateQueryParserMethod.Invoke(queryCompiler, new object[] { nodeTypeProvider });
-            var queryModel = parser.GetParsedQuery(self.Expression);
+            var queryModel = queryModelGenerator.ParseQuery(self.Expression);
             var modelVisitor = (RelationalQueryModelVisitor)database.CreateVisitor(factory, queryModel);
             modelVisitor.CreateQueryExecutor<TEntity>(queryModel);
             return modelVisitor;
